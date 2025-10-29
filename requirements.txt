@@ -1,4 +1,4 @@
 streamlit
-pdf2docx
+pdf2docx==0.5.8
 python-docx
 reportlab
