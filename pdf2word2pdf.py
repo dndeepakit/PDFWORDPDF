@@ -8,11 +8,17 @@ from docx import Document
 
 st.set_page_config(page_title="PDF ↔ Word Converter", page_icon="📄", layout="centered")
 
-st.title("📄 PDF ↔ Word Converter (Stable Layout Version)")
-st.write("Convert PDF ↔ Word with formatting retained (using Pandoc backend).")
+st.title("📄 PDF ↔ Word Converter (Auto-Fix Version)")
+st.write("Convert between PDF and Word with layout preserved. Pandoc auto-installs if missing.")
+
+# --- Ensure pandoc is available ---
+try:
+    pypandoc.get_pandoc_version()
+except OSError:
+    with st.spinner("Installing Pandoc... please wait ⏳"):
+        pypandoc.download_pandoc()
 
 option = st.radio("Select Conversion Type:", ("PDF ➜ Word (.docx)", "Word (.docx) ➜ PDF"))
-
 uploaded_file = st.file_uploader("Upload your file", type=["pdf", "docx"])
 
 if uploaded_file:
@@ -26,7 +32,7 @@ if uploaded_file:
         output_path = temp_file_path + ".docx"
         try:
             st.info("Converting PDF → Word... please wait ⏳")
-            pypandoc.convert_file(temp_file_path, "docx", outputfile=output_path, extra_args=['--standalone'])
+            pypandoc.convert_file(temp_file_path, "docx", outputfile=output_path, extra_args=["--standalone"])
             output_file = output_path
             st.success("✅ Conversion successful — layout retained!")
         except Exception as e:
@@ -40,7 +46,8 @@ if uploaded_file:
             width, height = letter
             y = height - 50
             for para in doc.paragraphs:
-                pdf.drawString(50, y, para.text)
+                text = para.text
+                pdf.drawString(50, y, text)
                 y -= 15
                 if y < 50:
                     pdf.showPage()
@@ -60,6 +67,7 @@ if uploaded_file:
                 mime="application/octet-stream"
             )
 
+    # cleanup
     os.remove(temp_file_path)
     if output_file and os.path.exists(output_file):
         os.remove(output_file)
