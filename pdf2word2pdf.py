@@ -1,69 +1,73 @@
 import streamlit as st
-from pdf2docx import Converter
-from fpdf import FPDF
+import pdfplumber
 from docx import Document
-import tempfile
-import os
-import traceback
+from io import BytesIO
+import fitz  # PyMuPDF
 
-st.set_page_config(page_title="PDF ↔ Word Converter", page_icon="📄", layout="centered")
+st.set_page_config(page_title="PDF ⇄ Word Converter", page_icon="📄", layout="centered")
 
-st.title("📄 PDF ↔ Word Converter (Streamlit Cloud)")
-st.caption("Convert between PDF and Word — no installation, 100% free!")
+def convert_pdf_to_word(pdf_bytes):
+    """Extract text, tables and layout from PDF and create a formatted Word doc."""
+    output = BytesIO()
+    doc = Document()
 
-option = st.radio("Choose conversion type:", ["PDF → Word", "Word → PDF"])
-uploaded_file = st.file_uploader("Upload your file", type=["pdf", "docx"])
+    with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
+        for page_num, page in enumerate(pdf.pages, start=1):
+            # Add page header
+            doc.add_heading(f"Page {page_num}", level=2)
 
-if uploaded_file:
-    suffix = os.path.splitext(uploaded_file.name)[1].lower()
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(uploaded_file.read())
-        input_path = tmp.name
+            # Try to extract tables first
+            tables = page.extract_tables()
+            if tables:
+                for table in tables:
+                    rows = len(table)
+                    cols = len(table[0])
+                    t = doc.add_table(rows=rows, cols=cols)
+                    for i, row in enumerate(table):
+                        for j, cell in enumerate(row):
+                            t.cell(i, j).text = str(cell) if cell else ""
+                    doc.add_paragraph("")  # spacing after table
 
-    try:
-        if option == "PDF → Word" and suffix == ".pdf":
-            output_path = input_path.replace(".pdf", ".docx")
-            st.info("⏳ Converting your PDF to Word... please wait.")
+            # Extract text blocks using PyMuPDF for order accuracy
+            page_text = page.extract_text(x_tolerance=1, y_tolerance=2)
+            if page_text:
+                doc.add_paragraph(page_text)
+            else:
+                # fallback: low-level text extraction
+                with fitz.open(stream=pdf_bytes, filetype="pdf") as doc_fitz:
+                    text = doc_fitz.load_page(page_num - 1).get_text("text")
+                    doc.add_paragraph(text)
+
+            doc.add_page_break()
+
+    doc.save(output)
+    return output.getvalue()
+
+
+def main():
+    st.title("📄 PDF ⇄ Word Converter")
+    st.write("Convert your PDF files into editable Word documents with preserved layout and tables.")
+
+    uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
+
+    if uploaded_file is not None:
+        pdf_bytes = uploaded_file.read()
+        with st.spinner("Converting... please wait ⏳"):
             try:
-                cv = Converter(input_path)
-                cv.convert(output_path, start=0, end=None)
-                cv.close()
+                docx_data = convert_pdf_to_word(pdf_bytes)
+                st.success("✅ Conversion successful!")
+                st.download_button(
+                    label="📥 Download Word File",
+                    data=docx_data,
+                    file_name="converted.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
             except Exception as e:
-                st.warning("⚠️ PDF2DOCX failed, using backup converter...")
-                try:
-                    import fitz  # PyMuPDF
-                    doc = Document()
-                    pdf = fitz.open(input_path)
-                    for page in pdf:
-                        text = page.get_text("text")
-                        doc.add_paragraph(text)
-                    doc.save(output_path)
-                except Exception as e2:
-                    st.error(f"Conversion failed in both methods: {e2}")
-                    st.text(traceback.format_exc())
-                    st.stop()
+                st.error(f"❌ Conversion failed: {e}")
 
-            with open(output_path, "rb") as f:
-                st.download_button("⬇️ Download Converted Word File", f, file_name="converted.docx")
-            st.success("✅ Done!")
+    st.markdown("---")
+    st.caption("Built with ❤️ using Streamlit, pdfplumber, and PyMuPDF")
 
-        elif option == "Word → PDF" and suffix == ".docx":
-            output_path = input_path.replace(".docx", ".pdf")
-            st.info("⏳ Converting your Word to PDF...")
-            doc = Document(input_path)
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            for para in doc.paragraphs:
-                pdf.multi_cell(0, 10, para.text)
-            pdf.output(output_path)
 
-            with open(output_path, "rb") as f:
-                st.download_button("⬇️ Download Converted PDF", f, file_name="converted.pdf")
-            st.success("✅ Done!")
-
-        else:
-            st.warning("⚠️ Please upload a matching file type for your selection.")
-    except Exception as e:
-        st.error(f"Conversion failed: {e}")
-        st.text(traceback.format_exc())
+if __name__ == "__main__":
+    main()
