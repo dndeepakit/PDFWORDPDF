@@ -1,5 +1,5 @@
 import streamlit as st
-import fitz  # PyMuPDF
+from pdf2docx import Converter
 from docx import Document
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -8,8 +8,8 @@ import os
 
 st.set_page_config(page_title="PDF ↔ Word Converter", page_icon="📄", layout="centered")
 
-st.title("📄 PDF ↔ Word Converter")
-st.write("Convert PDF ↔ Word documents easily and securely in your browser.")
+st.title("📄 PDF ↔ Word Converter (Layout Preserving)")
+st.write("Convert PDFs to Word with layout, tables, and images retained!")
 
 option = st.radio("Select Conversion Type:", ("PDF ➜ Word (.docx)", "Word (.docx) ➜ PDF"))
 
@@ -25,22 +25,18 @@ if uploaded_file:
     if option == "PDF ➜ Word (.docx)":
         output_path = temp_file_path + ".docx"
         try:
-            doc = fitz.open(temp_file_path)
-            word_doc = Document()
-            for page_num, page in enumerate(doc, start=1):
-                text = page.get_text("text")
-                word_doc.add_paragraph(text)
-            word_doc.save(output_path)
-            doc.close()
+            st.info("Converting... please wait ⏳")
+            cv = Converter(temp_file_path)
+            cv.convert(output_path, start=0, end=None, layout=True)
+            cv.close()
             output_file = output_path
-            st.success("✅ PDF successfully converted to Word!")
+            st.success("✅ Conversion successful — layout preserved!")
         except Exception as e:
             st.error(f"Conversion failed: {e}")
 
     elif option == "Word (.docx) ➜ PDF":
         output_path = temp_file_path + ".pdf"
         try:
-            from docx import Document
             doc = Document(temp_file_path)
             pdf = canvas.Canvas(output_path, pagesize=letter)
             width, height = letter
@@ -54,7 +50,7 @@ if uploaded_file:
                     y = height - 50
             pdf.save()
             output_file = output_path
-            st.success("✅ Word successfully converted to PDF!")
+            st.success("✅ Conversion successful!")
         except Exception as e:
             st.error(f"Conversion failed: {e}")
 
@@ -67,7 +63,6 @@ if uploaded_file:
                 mime="application/octet-stream"
             )
 
-    # Clean up temp files
     os.remove(temp_file_path)
     if output_file and os.path.exists(output_file):
         os.remove(output_file)
