@@ -1,15 +1,15 @@
 import streamlit as st
-from pdf2docx import Converter
-from docx import Document
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
 import tempfile
 import os
+import pypandoc
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from docx import Document
 
 st.set_page_config(page_title="PDF ↔ Word Converter", page_icon="📄", layout="centered")
 
-st.title("📄 PDF ↔ Word Converter (Layout Preserving)")
-st.write("Convert PDFs to Word with layout, tables, and images retained!")
+st.title("📄 PDF ↔ Word Converter (Stable Layout Version)")
+st.write("Convert PDF ↔ Word with formatting retained (using Pandoc backend).")
 
 option = st.radio("Select Conversion Type:", ("PDF ➜ Word (.docx)", "Word (.docx) ➜ PDF"))
 
@@ -25,12 +25,10 @@ if uploaded_file:
     if option == "PDF ➜ Word (.docx)":
         output_path = temp_file_path + ".docx"
         try:
-            st.info("Converting... please wait ⏳")
-            cv = Converter(temp_file_path)
-            cv.convert(output_path, start=0, end=None, layout=True)
-            cv.close()
+            st.info("Converting PDF → Word... please wait ⏳")
+            pypandoc.convert_file(temp_file_path, "docx", outputfile=output_path, extra_args=['--standalone'])
             output_file = output_path
-            st.success("✅ Conversion successful — layout preserved!")
+            st.success("✅ Conversion successful — layout retained!")
         except Exception as e:
             st.error(f"Conversion failed: {e}")
 
@@ -42,8 +40,7 @@ if uploaded_file:
             width, height = letter
             y = height - 50
             for para in doc.paragraphs:
-                text = para.text
-                pdf.drawString(50, y, text)
+                pdf.drawString(50, y, para.text)
                 y -= 15
                 if y < 50:
                     pdf.showPage()
