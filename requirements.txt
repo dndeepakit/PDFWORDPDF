@@ -1,3 +1,6 @@
+pip
+setuptools
+wheel
 streamlit
 pdf2docx>=0.5.9
 python-docx
