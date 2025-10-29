@@ -1,5 +1,5 @@
 import streamlit as st
-from pdf2docx import Converter
+import fitz  # PyMuPDF
 from docx import Document
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -9,7 +9,7 @@ import os
 st.set_page_config(page_title="PDF ↔ Word Converter", page_icon="📄", layout="centered")
 
 st.title("📄 PDF ↔ Word Converter")
-st.write("Easily convert your PDF files to Word and vice versa right in your browser.")
+st.write("Convert PDF ↔ Word documents easily and securely in your browser.")
 
 option = st.radio("Select Conversion Type:", ("PDF ➜ Word (.docx)", "Word (.docx) ➜ PDF"))
 
@@ -25,17 +25,22 @@ if uploaded_file:
     if option == "PDF ➜ Word (.docx)":
         output_path = temp_file_path + ".docx"
         try:
-            cv = Converter(temp_file_path)
-            cv.convert(output_path, start=0, end=None)
-            cv.close()
+            doc = fitz.open(temp_file_path)
+            word_doc = Document()
+            for page_num, page in enumerate(doc, start=1):
+                text = page.get_text("text")
+                word_doc.add_paragraph(text)
+            word_doc.save(output_path)
+            doc.close()
             output_file = output_path
-            st.success("✅ Conversion successful!")
+            st.success("✅ PDF successfully converted to Word!")
         except Exception as e:
             st.error(f"Conversion failed: {e}")
 
     elif option == "Word (.docx) ➜ PDF":
         output_path = temp_file_path + ".pdf"
         try:
+            from docx import Document
             doc = Document(temp_file_path)
             pdf = canvas.Canvas(output_path, pagesize=letter)
             width, height = letter
@@ -49,7 +54,7 @@ if uploaded_file:
                     y = height - 50
             pdf.save()
             output_file = output_path
-            st.success("✅ Conversion successful!")
+            st.success("✅ Word successfully converted to PDF!")
         except Exception as e:
             st.error(f"Conversion failed: {e}")
 
@@ -62,7 +67,7 @@ if uploaded_file:
                 mime="application/octet-stream"
             )
 
-    # Cleanup temp files
+    # Clean up temp files
     os.remove(temp_file_path)
     if output_file and os.path.exists(output_file):
         os.remove(output_file)
